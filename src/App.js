@@ -17,26 +17,40 @@ import ContactUs from './components/ContactUs';
 import axios from 'axios';
 
 function App() {
-  const { isAuthenticated, loginWithRedirect, user } = useAuth0(); // Extract user from useAuth0()
+  const { isAuthenticated, loginWithRedirect, user } = useAuth0();
   const [showModal, setShowModal] = useState(false);
+  const [userExists, setUserExists] = useState(false); // Track if user exists
+
+  // Function to check if the user already exists
+  const checkUserExists = async (userid) => {
+    try {
+      const response = await axios.get(
+        `https://json-production-4a9d.up.railway.app/records?userid=${userid}`
+      );
+      return response.data.length > 0; // Return true if user exists
+    } catch (error) {
+      console.error('Error checking if user exists:', error);
+      return false;
+    }
+  };
 
   // Function to send user data to the server if not already present
   const sendUserDataToServer = async (userData) => {
     try {
-      // First, check if the user already exists on the server by querying the userid
-      const existingUser = await axios.get(
-        `https://json-production-4a9d.up.railway.app/records?userid=${userData.userid}`
-      );
-
-      // If the user does not exist (empty array), add the user data
-      if (existingUser.data.length === 0) {
-        const response = await axios.post('https://json-production-4a9d.up.railway.app/records', userData);
-        console.log('New user data sent successfully:', response.data);
-      } else {
+      const exists = await checkUserExists(userData.userid);
+      if (exists) {
         console.log('User already exists, no need to send data.');
+        setUserExists(true); // Update the state to reflect existence
+        return;
       }
+
+      const response = await axios.post(
+        'https://json-production-4a9d.up.railway.app/records',
+        userData
+      );
+      console.log('New user data sent successfully:', response.data);
     } catch (error) {
-      console.error('Error checking or sending user data:', error);
+      console.error('Error sending user data:', error);
     }
   };
 
@@ -45,9 +59,9 @@ function App() {
     if (isAuthenticated && user?.sub) {
       const userData = {
         userid: user.sub,
-        name: user.name, // username
-        email: user.email, // user email
-        picture: user.picture, // user profile picture URL, if available
+        name: user.name,
+        email: user.email,
+        picture: user.picture,
       };
       sendUserDataToServer(userData);
     }
@@ -66,8 +80,9 @@ function App() {
             </button>
           ) : (
             <button
-              onClick={() => setShowModal(true)} // Show modal for registration
+              onClick={() => setShowModal(true)}
               className="bg-blue-500 text-white px-4 py-2 rounded"
+              disabled={userExists} // Disable button if user already exists
             >
               Register
             </button>
@@ -75,16 +90,16 @@ function App() {
         </div>
 
         {/* Register Modal */}
-        <RegisterModal 
-          showModal={showModal} 
-          setShowModal={setShowModal} 
-          user={user} // Pass the user object directly
+        <RegisterModal
+          showModal={showModal}
+          setShowModal={setShowModal}
+          user={user}
         />
 
         {/* Routes */}
         <Routes>
           <Route path="/" element={<FirstPage />} />
-          <Route path="/second-page" element={<SecondPage />} />
+          <Route path="/second-page" element={<SecondPage user={user} />} />
           <Route path="/policesecond-page" element={<PoliceSecondPage />} />
           <Route path="/tgspdcsecond-page" element={<TgspdcSecondPage />} />
           <Route path="/twalletsecond-page" element={<TwalletSecondPage />} />
